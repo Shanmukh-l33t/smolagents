@@ -1215,6 +1215,45 @@ class TestMultiStepAgent:
         action_step_callback_2.assert_not_called()
         final_answer_step_callback.assert_called_once_with(final_answer_step, agent=agent)
 
+    def test_action_step_callback_failure_keeps_completed_step(self):
+        failure = OSError("controlled progress-sink failure")
+
+        def failing_callback(step, agent):
+            raise failure
+
+        agent = CodeAgent(
+            tools=[],
+            model=FakeCodeModel(),
+            max_steps=1,
+            step_callbacks={ActionStep: failing_callback},
+        )
+        with pytest.raises(OSError) as exc_info:
+            agent.run("Test task")
+
+        assert exc_info.value is failure
+        action_steps = [step for step in agent.memory.steps if isinstance(step, ActionStep)]
+        assert len(action_steps) == 1
+        assert action_steps[0].action_output is not None
+
+    def test_planning_step_callback_failure_keeps_completed_step(self):
+        failure = OSError("controlled progress-sink failure")
+
+        def failing_callback(step, agent):
+            raise failure
+
+        agent = CodeAgent(
+            tools=[],
+            model=FakeCodeModelPlanning(),
+            max_steps=1,
+            planning_interval=1,
+            step_callbacks={PlanningStep: failing_callback},
+        )
+        with pytest.raises(OSError) as exc_info:
+            agent.run("Test task")
+
+        assert exc_info.value is failure
+        assert sum(isinstance(step, PlanningStep) for step in agent.memory.steps) == 1
+
     def test_logs_display_thoughts_even_if_error(self):
         class FakeJsonModelNoCall(Model):
             def generate(self, messages, stop_sequences=None, tools_to_call_from=None):
