@@ -15,6 +15,7 @@
 import json
 import sys
 from contextlib import ExitStack
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -1321,3 +1322,49 @@ def test_tool_calls_json_serialization(model_class, model_id):
     assert len(data["tool_calls"]) > 0
     assert data["tool_calls"][0]["function"]["name"] == "final_answer"
     assert data["tool_calls"][0]["function"]["arguments"] == "test_result"
+
+
+class _FakeProviderStream:
+    """Provider stream that records whether it was explicitly closed."""
+
+    def __init__(self):
+        self.closed = False
+
+    def __iter__(self):
+        yield SimpleNamespace(
+            usage=None,
+            choices=[SimpleNamespace(delta=SimpleNamespace(content="hello", tool_calls=None), finish_reason=None)],
+        )
+
+    def close(self):
+        self.closed = True
+
+
+def _assert_stream_closed_by_generator_close(model):
+    stream = _FakeProviderStream()
+    model.client.chat.completions.create.return_value = stream
+    generator = model.generate_stream([ChatMessage(role=MessageRole.USER, content="hi")])
+    assert next(generator).content == "hello"
+    generator.close()
+    # The local reference keeps the stream alive, so only an explicit close can flip the flag.
+    assert stream.closed
+
+
+def test_openai_generate_stream_closes_provider_stream_on_close():
+    model = OpenAIModel(model_id="gpt-4", client=MagicMock())
+    _assert_stream_closed_by_generator_close(model)
+
+
+def test_inference_client_generate_stream_closes_provider_stream_on_close():
+    model = InferenceClientModel(model_id="Qwen/Qwen3-Next-80B-A3B-Thinking", client=MagicMock())
+    _assert_stream_closed_by_generator_close(model)
+
+
+def test_litellm_generate_stream_closes_provider_stream_on_close():
+    model = LiteLLMModel(model_id="gpt-4", client=MagicMock())
+    stream = _FakeProviderStream()
+    model.client.completion.return_value = stream
+    generator = model.generate_stream([ChatMessage(role=MessageRole.USER, content="hi")])
+    assert next(generator).content == "hello"
+    generator.close()
+    assert stream.closed

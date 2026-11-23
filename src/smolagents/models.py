@@ -1352,37 +1352,42 @@ class LiteLLMModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        for event in self.retryer(
+        stream = self.retryer(
             self.client.completion, **completion_kwargs, stream=True, stream_options={"include_usage": True}
-        ):
-            if getattr(event, "usage", None):
-                yield ChatMessageStreamDelta(
-                    content="",
-                    token_usage=TokenUsage(
-                        input_tokens=event.usage.prompt_tokens,
-                        output_tokens=event.usage.completion_tokens,
-                    ),
-                )
-            if event.choices:
-                choice = event.choices[0]
-                if choice.delta:
+        )
+        try:
+            for event in stream:
+                if getattr(event, "usage", None):
                     yield ChatMessageStreamDelta(
-                        content=choice.delta.content,
-                        tool_calls=[
-                            ChatMessageToolCallStreamDelta(
-                                index=delta.index,
-                                id=delta.id,
-                                type=delta.type,
-                                function=delta.function,
-                            )
-                            for delta in choice.delta.tool_calls
-                        ]
-                        if choice.delta.tool_calls
-                        else None,
+                        content="",
+                        token_usage=TokenUsage(
+                            input_tokens=event.usage.prompt_tokens,
+                            output_tokens=event.usage.completion_tokens,
+                        ),
                     )
-                else:
-                    if not getattr(choice, "finish_reason", None):
-                        raise ValueError(f"No content or tool calls in event: {event}")
+                if event.choices:
+                    choice = event.choices[0]
+                    if choice.delta:
+                        yield ChatMessageStreamDelta(
+                            content=choice.delta.content,
+                            tool_calls=[
+                                ChatMessageToolCallStreamDelta(
+                                    index=delta.index,
+                                    id=delta.id,
+                                    type=delta.type,
+                                    function=delta.function,
+                                )
+                                for delta in choice.delta.tool_calls
+                            ]
+                            if choice.delta.tool_calls
+                            else None,
+                        )
+                    else:
+                        if not getattr(choice, "finish_reason", None):
+                            raise ValueError(f"No content or tool calls in event: {event}")
+        finally:
+            if hasattr(stream, "close"):
+                stream.close()
 
 
 class LiteLLMRouterModel(LiteLLMModel):
@@ -1632,40 +1637,45 @@ class InferenceClientModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        for event in self.retryer(
+        stream = self.retryer(
             self.client.chat.completions.create,
             **completion_kwargs,
             stream=True,
             stream_options={"include_usage": True},
-        ):
-            if getattr(event, "usage", None):
-                yield ChatMessageStreamDelta(
-                    content="",
-                    token_usage=TokenUsage(
-                        input_tokens=event.usage.prompt_tokens,
-                        output_tokens=event.usage.completion_tokens,
-                    ),
-                )
-            if event.choices:
-                choice = event.choices[0]
-                if choice.delta:
+        )
+        try:
+            for event in stream:
+                if getattr(event, "usage", None):
                     yield ChatMessageStreamDelta(
-                        content=choice.delta.content,
-                        tool_calls=[
-                            ChatMessageToolCallStreamDelta(
-                                index=delta.index,
-                                id=delta.id,
-                                type=delta.type,
-                                function=delta.function,
-                            )
-                            for delta in choice.delta.tool_calls
-                        ]
-                        if choice.delta.tool_calls
-                        else None,
+                        content="",
+                        token_usage=TokenUsage(
+                            input_tokens=event.usage.prompt_tokens,
+                            output_tokens=event.usage.completion_tokens,
+                        ),
                     )
-                else:
-                    if not getattr(choice, "finish_reason", None):
-                        raise ValueError(f"No content or tool calls in event: {event}")
+                if event.choices:
+                    choice = event.choices[0]
+                    if choice.delta:
+                        yield ChatMessageStreamDelta(
+                            content=choice.delta.content,
+                            tool_calls=[
+                                ChatMessageToolCallStreamDelta(
+                                    index=delta.index,
+                                    id=delta.id,
+                                    type=delta.type,
+                                    function=delta.function,
+                                )
+                                for delta in choice.delta.tool_calls
+                            ]
+                            if choice.delta.tool_calls
+                            else None,
+                        )
+                    else:
+                        if not getattr(choice, "finish_reason", None):
+                            raise ValueError(f"No content or tool calls in event: {event}")
+        finally:
+            if hasattr(stream, "close"):
+                stream.close()
 
 
 class OpenAIModel(ApiModel):
@@ -1748,40 +1758,45 @@ class OpenAIModel(ApiModel):
             **kwargs,
         )
         self._apply_rate_limit()
-        for event in self.retryer(
+        stream = self.retryer(
             self.client.chat.completions.create,
             **completion_kwargs,
             stream=True,
             stream_options={"include_usage": True},
-        ):
-            if event.usage:
-                yield ChatMessageStreamDelta(
-                    content="",
-                    token_usage=TokenUsage(
-                        input_tokens=event.usage.prompt_tokens,
-                        output_tokens=event.usage.completion_tokens,
-                    ),
-                )
-            if event.choices:
-                choice = event.choices[0]
-                if choice.delta:
+        )
+        try:
+            for event in stream:
+                if event.usage:
                     yield ChatMessageStreamDelta(
-                        content=choice.delta.content,
-                        tool_calls=[
-                            ChatMessageToolCallStreamDelta(
-                                index=delta.index,
-                                id=delta.id,
-                                type=delta.type,
-                                function=delta.function,
-                            )
-                            for delta in choice.delta.tool_calls
-                        ]
-                        if choice.delta.tool_calls
-                        else None,
+                        content="",
+                        token_usage=TokenUsage(
+                            input_tokens=event.usage.prompt_tokens,
+                            output_tokens=event.usage.completion_tokens,
+                        ),
                     )
-                else:
-                    if not getattr(choice, "finish_reason", None):
-                        raise ValueError(f"No content or tool calls in event: {event}")
+                if event.choices:
+                    choice = event.choices[0]
+                    if choice.delta:
+                        yield ChatMessageStreamDelta(
+                            content=choice.delta.content,
+                            tool_calls=[
+                                ChatMessageToolCallStreamDelta(
+                                    index=delta.index,
+                                    id=delta.id,
+                                    type=delta.type,
+                                    function=delta.function,
+                                )
+                                for delta in choice.delta.tool_calls
+                            ]
+                            if choice.delta.tool_calls
+                            else None,
+                        )
+                    else:
+                        if not getattr(choice, "finish_reason", None):
+                            raise ValueError(f"No content or tool calls in event: {event}")
+        finally:
+            if hasattr(stream, "close"):
+                stream.close()
 
     def generate(
         self,
